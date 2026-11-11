@@ -30,9 +30,24 @@ class QueryOrchestrator:
         system_prompt: Optional[str] = None,
         operator_id: Optional[str] = None,
         prior_messages: Optional[List[Message]] = None,
+        model: Optional[str] = None,
+        tool_instances: Optional[List[BaseTool]] = None,
+        memory_files: Optional[Any] = None,
+        system_prompt_config: Optional[Any] = None,
+        memory_backend: Optional[Any] = None,
     ) -> Dict[str, Any]:
-        """Execute a query through the system and return a result dict."""
+        """Execute a query through the system and return a result dict.
+
+        [jarvis-fork] ``model``, ``tool_instances``, ``memory_files``,
+        ``system_prompt_config`` and ``memory_backend`` are optional per-request
+        overrides used by the household layer (privacy routing, per-person
+        memory, role-based tools). All default to the system's own values.
+        """
         s = self._system
+        _model = model or s.model
+        _memory_backend = (
+            memory_backend if memory_backend is not None else s.memory_backend
+        )
         if temperature is None:
             temperature = s.config.intelligence.temperature
         if max_tokens is None:
@@ -57,7 +72,7 @@ class QueryOrchestrator:
                 messages = inject_context(
                     query,
                     messages,
-                    s.memory_backend,
+                    _memory_backend,
                     config=ctx_cfg,
                     facts=facts,
                 )
@@ -80,18 +95,23 @@ class QueryOrchestrator:
                 system_prompt=system_prompt,
                 operator_id=operator_id,
                 prior_messages=prior_messages,
+                model=_model,
+                tool_instances=tool_instances,
+                memory_files=memory_files,
+                system_prompt_config=system_prompt_config,
+                memory_backend=_memory_backend,
             )
 
         result = s.engine.generate(
             messages,
-            model=s.model,
+            model=_model,
             temperature=temperature,
             max_tokens=max_tokens,
         )
         return {
             "content": result.get("content", ""),
             "usage": result.get("usage", {}),
-            "model": s.model,
+            "model": _model,
             "engine": s.engine_key,
         }
 
@@ -123,6 +143,11 @@ class QueryOrchestrator:
         system_prompt=None,
         operator_id=None,
         prior_messages=None,
+        model=None,
+        tool_instances=None,
+        memory_files=None,
+        system_prompt_config=None,
+        memory_backend=None,
     ) -> Dict[str, Any]:
         """Run through an agent."""
         from openjarvis.agents._stubs import AgentContext
@@ -136,8 +161,14 @@ class QueryOrchestrator:
         except KeyError:
             return {"content": f"Unknown agent: {agent_name}", "error": True}
 
+        _model = model or s.model
+        _memory_backend = (
+            memory_backend if memory_backend is not None else s.memory_backend
+        )
         agent_tools = s.tools
-        if tool_names:
+        if tool_instances is not None:
+            agent_tools = list(tool_instances)
+        elif tool_names:
             agent_tools = self._build_tools(tool_names)
 
         ctx = AgentContext()
@@ -181,7 +212,7 @@ class QueryOrchestrator:
         if operator_id is not None:
             agent_kwargs["operator_id"] = operator_id
             agent_kwargs["session_store"] = s.session_store
-            agent_kwargs["memory_backend"] = s.memory_backend
+            agent_kwargs["memory_backend"] = _memory_backend
 
         if agent_name == "morning_digest" and hasattr(s.config, "digest"):
             dc = s.config.digest
@@ -223,15 +254,15 @@ class QueryOrchestrator:
 
             agent_kwargs["prompt_builder"] = SystemPromptBuilder(
                 agent_template=s.config.agent.default_system_prompt or "",
-                memory_files_config=s.config.memory_files,
-                system_prompt_config=s.config.system_prompt,
+                memory_files_config=memory_files or s.config.memory_files,
+                system_prompt_config=system_prompt_config or s.config.system_prompt,
             )
 
         try:
-            ag = agent_cls(s.engine, s.model, **agent_kwargs)
+            ag = agent_cls(s.engine, _model, **agent_kwargs)
         except TypeError:
             try:
-                ag = agent_cls(s.engine, s.model)
+                ag = agent_cls(s.engine, _model)
             except TypeError:
                 ag = agent_cls()
 
@@ -330,7 +361,7 @@ class QueryOrchestrator:
             ],
             "turns": getattr(result, "turns", 1),
             "metadata": getattr(result, "metadata", {}),
-            "model": s.model,
+            "model": _model,
             "engine": s.engine_key,
             "_telemetry": _telemetry,
         }

@@ -167,6 +167,11 @@ try:
 except ImportError:
     pass
 
+try:  # [jarvis-fork] Microsoft 365 multi-account mail
+    import openjarvis.tools.m365_mail  # noqa: F401
+except ImportError:
+    pass
+
 try:
     import openjarvis.tools.knowledge_search  # noqa: F401
 except ImportError:

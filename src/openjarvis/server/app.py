@@ -482,6 +482,13 @@ def create_app(
     app.include_router(upload_router)
     app.include_router(research_router)
     app.include_router(analytics_router)
+    # [jarvis-fork] household approvals + info (404s unless people.toml exists)
+    try:
+        from openjarvis.household.api import router as _household_router
+
+        app.include_router(_household_router)
+    except Exception as exc:  # pragma: no cover
+        logger.debug("household router skipped: %s", exc)
     include_all_routes(app)
 
     # Restore SendBlue channel bindings from database on startup

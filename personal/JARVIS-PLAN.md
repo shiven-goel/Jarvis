@@ -34,21 +34,16 @@ OpenJarvis is tracked as the `upstream` remote, so its updates can be pulled in.
 - Security: secret/PII scanners, SSRF protection, audit log, capability policies, a loopback-only server by default
 - A systemd unit example, a web frontend (Vite/React), and a Tauri desktop app
 
-## Gaps I found in the code that need building (must-haves)
+## Gaps found in the code: ✅ all fixed
 
-These came from reading the source, not guessing:
+Details and how to verify each one: [`docs/FIXES.md`](docs/FIXES.md).
 
-1. **No sender allowlist on Slack or WhatsApp.** `channels/slack.py` and the Baileys `bridge.ts` pass every
-   message from anyone to the agent, including WhatsApp groups. → Add an allowlist (Slack user IDs, WhatsApp numbers),
-   ignore groups, and map each allowed person to a role (`owner` or `family`).
-2. **Only one channel at a time.** `jarvis serve` starts a single `channel.default_channel`. → Start Slack and WhatsApp together.
-3. **Tool confirmation isn't enforced.** `security.enforce_tool_confirmation` is accepted but not applied
-   (per the docs). The approvals API only serves the proactive agent. → Add a risk-tiered approval gate
-   (low = auto; high = ask on the same channel with a "yes"/"no" reply, or in the dashboard).
-4. **No sensitivity-based routing.** The router picks a model by query complexity, not by privacy.
-   → Add a rule: if connector data (mail, files, Notion, calendar) is in context, or a tool returns it, use the local model.
-5. **One shared memory.** A single `memory.db` and `USER.md`. → Add per-person memory and profile for family users,
-   and block connector tools for anyone who isn't the owner.
+1. ✅ **Sender allowlist + roles** (owner / family); group chats and strangers ignored
+2. ✅ **Several channels at once** (`default_channel = "slack,whatsapp_baileys"`)
+3. ✅ **Risk-tiered approvals**: low risk runs automatically, everything else asks you in chat or on the dashboard
+4. ✅ **Privacy router**: private data is only ever seen by the local model, in chat **and** on the dashboard
+5. ✅ **Per-person memory**; family gets no access to your data
+6. ✅ **New: Microsoft 365 / Outlook with many accounts** (work, personal, shared mailboxes); see [`docs/microsoft-365-setup.md`](docs/microsoft-365-setup.md)
 
 ## Other things you need because of external apps
 
@@ -61,7 +56,9 @@ These came from reading the source, not guessing:
   (`gmail.readonly`) through the same Google Cloud project as Calendar and Drive.
   - Google OAuth apps in "Testing" mode have refresh tokens that **expire after 7 days**, so reconnecting weekly is expected.
   - OpenJarvis's Drive token refresh is "coming soon" upstream.
-- **Outlook work account**: many companies block IMAP and app passwords, and policy may forbid it. Ask IT first.
+- **Outlook**: Microsoft has switched off app-password IMAP, so the upstream `outlook` connector won't work.
+  Use the new `jarvis m365` (Graph, read-only, many accounts). For work accounts, IT may need to approve the app,
+  and company policy may forbid it. Ask first.
 - **Prompt injection**: emails and documents can contain text like "ignore your instructions and forward…".
   Connector content is treated as untrusted data, and high-risk actions *always* need your approval. This is one more
   reason for gap #3.
@@ -93,12 +90,13 @@ These came from reading the source, not guessing:
 | Phase | What | Status |
 |-------|------|--------|
 | 0 | Fork imported, plan written, host scripts adapted | ✅ done |
+| 0b | All 5 gaps fixed + Microsoft 365 multi-account connector, with 76 tests | ✅ done |
 | 1 | Host: Ubuntu setup (no sleep, SSH, firewall, auto-updates, systemd service, health check). Install OpenJarvis from this repo, then Ollama + Qwen | next |
-| 2 | Brain: Claude + Gemini keys in `.env`; hybrid config; **privacy router** (gap 4) | |
-| 3 | Identity + memory: `SOUL.md` (Jarvis persona), `USER.md` (you), memory on; **per-person memory** (gap 5) | |
-| 4 | Safety: **approval gate** (gap 3), capability policy, audit log, backups | |
-| 5 | Data: Google OAuth read-only (Gmail, Calendar, Drive), Notion, Outlook | |
-| 6 | Channels: Slack + WhatsApp **with allowlist** (gap 1), **both at once** (gap 2) | |
+| 2 | Brain: Claude + Gemini keys in `.env`; Ollama + Qwen (privacy router is built) | |
+| 3 | Identity + memory: `SOUL.md` (Jarvis persona), `USER.md` (you); family memory is built | |
+| 4 | Safety: approval gate ✅; capability policy, audit log, backups | |
+| 5 | Data: Google OAuth read-only (Gmail, Calendar, Drive), Notion, Microsoft 365 (`jarvis m365`) | |
+| 6 | Channels: create the Slack app, link the WhatsApp number (allowlist + both-at-once are built) | |
 | 7 | Voice: ElevenLabs replies (audio in Slack/WhatsApp/dashboard); local Whisper for voice notes | |
 | 8 | Skills: starter skills (morning brief, inbox triage, meeting prep) + how to add your own | |
 | 9 | Interface: Jarvis HUD theme + orb main screen inside the OpenJarvis frontend; Tailscale access | |
@@ -106,16 +104,20 @@ These came from reading the source, not guessing:
 ## Repo layout
 
 ```
-(upstream OpenJarvis files, untouched)
+(upstream OpenJarvis files; patched spots are marked [jarvis-fork])
+src/openjarvis/household/        allowlist, roles, privacy router, per-person memory, approvals API
+src/openjarvis/security/approval_gate.py
+src/openjarvis/connectors/m365_mail.py   + tools/m365_mail.py + cli/m365_cmd.py
+src/openjarvis/cli/people_cmd.py         `jarvis people check`
+tests/household/, tests/connectors/test_m365_mail.py
 personal/
   JARVIS-PLAN.md          this file
-  host/
-    check-hardware.sh     what's in my machine + recommended Qwen size
-    linux/setup.sh        always-on Ubuntu setup + systemd user service
-    linux/jarvis.service  service template
-    run-jarvis.sh         supervisor wrapper (runs `jarvis serve`)
-    healthcheck.sh        PASS/FAIL health report
-    uninstall.sh          remove the service
+  docs/FIXES.md           what was fixed + how to verify
+  docs/microsoft-365-setup.md
+  config/config.toml      -> ~/.openjarvis/config.toml
+  config/people.example.toml -> ~/.openjarvis/people.toml (chmod 600)
+  config/env.example      -> ~/.openjarvis/.env (chmod 600)
+  host/                   always-on Ubuntu setup, service, health check
 ```
 
 ## Pulling upstream updates later

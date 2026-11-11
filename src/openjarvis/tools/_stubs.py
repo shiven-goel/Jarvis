@@ -398,7 +398,19 @@ class ToolExecutor:
             params.pop("_taint", None)
 
         # Confirmation check for sensitive tools
-        if tool.spec.requires_confirmation:
+        # [jarvis-fork] With the household approval gate active, tools that need
+        # confirmation are routed to the gate (ask the owner) instead of being
+        # refused outright when no interactive callback exists.
+        from openjarvis.security.approval_gate import gate_active, gate_tool_call
+
+        _force_approval = False
+        if (
+            tool.spec.requires_confirmation
+            and (not self._interactive or self._confirm_callback is None)
+            and gate_active()
+        ):
+            _force_approval = True
+        elif tool.spec.requires_confirmation:
             if not self._interactive or self._confirm_callback is None:
                 return ToolResult(
                     tool_name=tool_call.name,
@@ -416,6 +428,29 @@ class ToolExecutor:
                     content=f"Tool '{tool_call.name}' execution denied by user.",
                     success=False,
                 )
+
+        # [jarvis-fork] Risk-tiered approval gate (no-op unless installed).
+        _denial = gate_tool_call(
+            tool_call.name,
+            params,
+            agent_id=self._agent_id,
+            force_high=_force_approval,
+        )
+        if _denial is not None:
+            if self._bus:
+                self._bus.publish(
+                    EventType.CAPABILITY_DENIED,
+                    {
+                        "agent_id": self._agent_id,
+                        "capability": "approval",
+                        "tool": tool_call.name,
+                    },
+                )
+            return ToolResult(
+                tool_name=tool_call.name,
+                content=_denial,
+                success=False,
+            )
 
         # Emit start event. ``agent`` carries the managed-agent UUID so the
         # AgentExecutor's trace subscriber (which filters by agent_id) can

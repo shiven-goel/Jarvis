@@ -433,8 +433,11 @@ def serve(
             console.print(f"[yellow]Agent '{agent_key}' failed to load: {exc}[/yellow]")
             traceback.print_exc()
 
-    # Set up channel backend if enabled
+    # Set up channel backend(s) if enabled.
+    # [jarvis-fork] default_channel may list several channels,
+    # e.g. "slack,whatsapp_baileys".
     channel_bridge = None
+    channel_backends: list = []
     if config.channel.enabled and config.channel.default_channel:
         try:
             from openjarvis.system import SystemBuilder
@@ -442,15 +445,21 @@ def serve(
             # Reuse _resolve_channel logic from SystemBuilder
             sb = SystemBuilder(config)
             sb._bus = bus
-            channel_bridge = sb._resolve_channel(config, bus)
-            if channel_bridge is not None:
-                channel_bridge.connect()
-                console.print(
-                    f"  Channel: [cyan]{config.channel.default_channel}[/cyan]"
-                )
+            for _ch in sb._resolve_channels(config, bus):
+                try:
+                    _ch.connect()
+                    channel_backends.append(_ch)
+                    console.print(f"  Channel: [cyan]{_ch.channel_id}[/cyan]")
+                except Exception as exc:
+                    console.print(
+                        f"[yellow]Channel {getattr(_ch, 'channel_id', '?')} "
+                        f"failed to start: {exc}[/yellow]"
+                    )
+            channel_bridge = channel_backends[0] if channel_backends else None
         except Exception as exc:
             console.print(f"[yellow]Channel failed to start: {exc}[/yellow]")
             channel_bridge = None
+            channel_backends = []
 
     # Wire channel messages → agent / engine (per-chat session isolation)
     if channel_bridge is not None:
@@ -518,7 +527,8 @@ def serve(
             audit_logger=sec.audit_logger,
             rate_limiter=sec.rate_limiter,
         )
-        _wire_system.wire_channel(channel_bridge)
+        for _ch in channel_backends or [channel_bridge]:
+            _wire_system.wire_channel(_ch)
 
     # Set up speech backend
     speech_backend = None
@@ -736,7 +746,9 @@ def serve(
             )
 
             session_store = SessionStore()
-            channels = {channel_bridge.channel_id: channel_bridge}
+            channels = {
+                ch.channel_id: ch for ch in (channel_backends or [channel_bridge])
+            }
             channel_bridge = ChannelBridge(
                 channels=channels,
                 session_store=session_store,

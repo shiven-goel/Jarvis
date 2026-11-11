@@ -32,6 +32,15 @@ fi
 perm=$(ls -ld "$JARVIS_HOME" 2>/dev/null | cut -c1-10)
 if [ "$perm" = "drwx------" ]; then pass "$JARVIS_HOME is private"; else fail "$JARVIS_HOME permissions are $perm (want drwx------)"; fi
 
+OJ="${OPENJARVIS_HOME:-$HOME/.openjarvis}"
+for f in "$OJ/.env" "$OJ/people.toml"; do
+  if [ -f "$f" ]; then
+    p=$(stat -c '%a' "$f" 2>/dev/null || stat -f '%Lp' "$f")
+    if [ "$p" = "600" ] || [ "$p" = "400" ]; then pass "$(basename "$f") is private"; else fail "$f permissions are $p (run: chmod 600 $f)"; fi
+  fi
+done
+if [ -f "$OJ/people.toml" ]; then pass "allowlist (people.toml) present"; else fail "no $OJ/people.toml: anyone who can reach a channel can talk to Jarvis"; fi
+
 echo; echo "Recent log:"; $LOGCMD 2>/dev/null || true
 echo
 if [ "$fails" -eq 0 ]; then echo "All checks passed."; else echo "$fails check(s) failed."; exit 1; fi

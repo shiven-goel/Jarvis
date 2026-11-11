@@ -74,6 +74,7 @@ except ImportError:
     pass
 
 try:
+    import openjarvis.connectors.m365_mail  # noqa: F401  [jarvis-fork]
     import openjarvis.connectors.outlook  # noqa: F401
 except ImportError:
     pass

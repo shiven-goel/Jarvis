@@ -186,6 +186,13 @@ if not _DATA_BOUNDARY_BOOTSTRAP:
             "deep-research command unavailable: %s", _dr_exc
         )
     cli.add_command(self_update, "self-update")
+
+    # [jarvis-fork] Microsoft 365 multi-account mail + household allowlist
+    from openjarvis.cli.m365_cmd import m365
+    from openjarvis.cli.people_cmd import people
+
+    cli.add_command(m365, "m365")
+    cli.add_command(people, "people")
     cli.add_command(bootstrap_cmd, "_bootstrap")
 
     # Gateway CLI commands (lazy import to avoid pulling starlette)

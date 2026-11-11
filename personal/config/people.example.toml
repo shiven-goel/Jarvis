@@ -1,0 +1,57 @@
+# Who may talk to Jarvis. Copy to ~/.openjarvis/people.toml and chmod 600.
+#   cp ~/jarvis/personal/config/people.example.toml ~/.openjarvis/people.toml
+#   chmod 600 ~/.openjarvis/people.toml && jarvis people check
+#
+# While this file exists, Jarvis ignores everyone who is not listed here,
+# ignores group chats, asks you before risky actions, keeps private data on
+# the local model, and gives each family member their own memory.
+
+[settings]
+enabled = true
+ignore_groups = true          # only 1:1 chats / Slack DMs
+stranger_reply = ""           # "" = ignore strangers silently
+
+[models]
+local = "qwen3:8b"            # private + quick requests (must match `ollama list`)
+cloud = "claude-sonnet-4-6"   # complex, non-private requests
+cloud_alt = "gemini-2.5-pro"  # start a message with /gemini to use it
+family = "local"              # "local", "cloud", or a model name
+complexity_threshold = 0.30   # below this, even non-private requests stay local
+cloud_enabled = true          # false = never use cloud models
+
+[privacy]
+sticky_turns = 6              # stay local this many turns after private data
+# extra_sensitive_keywords = ["tax", "lawyer"]
+# extra_sensitive_tool_prefixes = ["my_crm_"]
+
+[approval]
+enabled = true
+timeout_minutes = 10          # no answer = cancelled
+# extra_auto_tools = []       # tools you trust to run without asking
+# always_ask_tools = ["web_search"]
+
+[family]
+# tools = ["calculator", "think", "get_weather", "web_search",
+#          "memory_store", "memory_retrieve", "memory_search",
+#          "memory_manage", "user_profile_manage"]
+
+# ---------------------------------------------------------------------------
+# People. Exactly one owner. IDs:
+#  - slack: your member ID (Slack > your profile > ⋮ > Copy member ID), e.g. U01ABCDEF
+#  - whatsapp: phone number with country code, any format, e.g. "+1 555 123 4567"
+# Unknown senders are logged with their exact id, so you can copy it from:
+#   journalctl --user -u jarvis | grep "unknown"
+# ---------------------------------------------------------------------------
+
+[[people]]
+id = "owner"
+name = "Your Name"
+role = "owner"
+slack = ["U00000000"]
+whatsapp = ["+1 555 000 0000"]
+
+# [[people]]
+# id = "mom"
+# name = "Mom"
+# role = "family"
+# whatsapp = ["+1 555 000 0001"]

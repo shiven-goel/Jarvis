@@ -147,7 +147,10 @@ class JarvisSystem:
         system_prompt: Optional[str] = None,
         operator_id: Optional[str] = None,
         prior_messages: Optional[List[Message]] = None,
+        **overrides: Any,
     ) -> Dict[str, Any]:
+        # [jarvis-fork] ``overrides`` = model / tool_instances / memory_files /
+        # system_prompt_config / memory_backend (see QueryOrchestrator.ask).
         return self._get_orchestrator().ask(
             query,
             context=context,
@@ -158,6 +161,7 @@ class JarvisSystem:
             system_prompt=system_prompt,
             operator_id=operator_id,
             prior_messages=prior_messages,
+            **overrides,
         )
 
     def _detect_agent_intent(self, query: str) -> Optional[str]:
@@ -205,7 +209,19 @@ class JarvisSystem:
             instance whose ``on_message`` method accepts a callable.
         """
         from openjarvis.core.types import Message
+
+        # [jarvis-fork] When ~/.openjarvis/people.toml exists, the household
+        # layer takes over: sender allowlist, roles, approvals, privacy routing
+        # and per-person memory.
+        from openjarvis.household import get_household
         from openjarvis.sessions.session import SessionStore
+
+        _household = get_household()
+        if _household is not None:
+            from openjarvis.household.wiring import wire_household_channel
+
+            wire_household_channel(self, channel_bridge, _household)
+            return
 
         if self.session_store is None:
             from pathlib import Path

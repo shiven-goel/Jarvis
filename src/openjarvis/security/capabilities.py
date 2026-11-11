@@ -257,6 +257,11 @@ DEFAULT_TOOL_CAPABILITIES: Dict[str, List[str]] = {
     "knowledge_sql": [Capability.MEMORY_READ],
     "list_scheduled_tasks": [Capability.SCHEDULE_CREATE],
     "llm": [Capability.NETWORK_FETCH],
+    # [jarvis-fork] Microsoft 365 multi-account mail (read-only)
+    "m365_accounts": [Capability.FILE_READ],
+    "m365_mail_read": [Capability.NETWORK_FETCH],
+    "m365_mail_recent": [Capability.NETWORK_FETCH],
+    "m365_mail_search": [Capability.NETWORK_FETCH],
     "memory_index": [Capability.MEMORY_WRITE],
     "memory_manage": [Capability.MEMORY_READ, Capability.MEMORY_WRITE],
     "memory_retrieve": [Capability.MEMORY_READ],

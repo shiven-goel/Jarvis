@@ -1,0 +1,61 @@
+# Jarvis config for OpenJarvis. Copy to ~/.openjarvis/config.toml
+#   cp ~/jarvis/personal/config/config.toml ~/.openjarvis/config.toml
+# No secrets in this file. Keys go in ~/.openjarvis/.env (chmod 600).
+
+[engine]
+default = "ollama"                 # local engine; cloud engine is added automatically when keys exist
+
+[engine.ollama]
+host = "http://localhost:11434"
+
+[intelligence]
+default_model = "qwen3:8b"         # pick the size check-hardware.sh recommends
+temperature = 0.4
+max_tokens = 2048
+
+[agent]
+default_agent = "orchestrator"
+max_turns = 8
+context_from_memory = true
+tools = "calculator,think,web_search,get_weather,memory_store,memory_retrieve,memory_search,memory_manage,user_profile_manage,knowledge_search,schedule_task,list_scheduled_tasks,cancel_scheduled_task,m365_accounts,m365_mail_recent,m365_mail_search,m365_mail_read,http_request,channel_send,text_to_speech"
+
+[server]
+host = "127.0.0.1"                 # never 0.0.0.0; remote access is via Tailscale
+port = 8000
+agent = "orchestrator"
+
+[channel]
+enabled = true
+default_channel = "slack,whatsapp_baileys"   # [jarvis-fork] several channels at once
+default_agent = "orchestrator"
+
+[channel.whatsapp_baileys]
+assistant_name = "Jarvis"
+assistant_has_own_number = true    # Jarvis uses a spare number, not yours
+
+[security]
+profile = "personal"
+mode = "redact"                    # redact secrets/PII the scanners detect
+ssrf_protection = true
+rate_limit_enabled = true
+
+[speech]
+backend = "faster-whisper"         # local speech-to-text for voice notes
+model = "base"
+tts_backend = "elevenlabs"         # voice replies; voice set by ELEVENLABS_VOICE_ID
+
+[analytics]
+enabled = false                    # no usage data sent to the OpenJarvis team
+choice_recorded = true
+
+[learning]
+enabled = false                    # no self-training
+
+[telemetry]
+enabled = true                     # local-only metrics in ~/.openjarvis/telemetry.db
+
+[traces]
+enabled = true                     # local-only
+
+[tools.mcp]
+enabled = false

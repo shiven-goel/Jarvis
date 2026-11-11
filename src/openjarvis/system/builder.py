@@ -444,10 +444,32 @@ class SystemBuilder:
             logger.warning("Failed to resolve memory backend: %s", exc)
         return None
 
-    def _resolve_channel(self, config, bus):
+    def _resolve_channels(self, config, bus):
+        """[jarvis-fork] Resolve every channel in ``default_channel``.
+
+        ``default_channel`` may list several channels separated by commas,
+        e.g. ``"slack,whatsapp_baileys"``; each is created independently.
+        """
+        if not config.channel.enabled:
+            return []
+        keys = [
+            k.strip() for k in str(config.channel.default_channel or "").split(",")
+        ]
+        out = []
+        for key in keys:
+            if not key:
+                continue
+            ch = self._resolve_channel(config, bus, key=key)
+            if ch is not None:
+                out.append(ch)
+        return out
+
+    def _resolve_channel(self, config, bus, key=None):
         if not config.channel.enabled:
             return None
-        key = config.channel.default_channel
+        if key is None:
+            # First entry of a comma-separated list (upstream: a single key).
+            key = str(config.channel.default_channel or "").split(",")[0].strip()
         try:
             import openjarvis.channels  # noqa: F401 -- trigger registration
             from openjarvis.core.registry import ChannelRegistry

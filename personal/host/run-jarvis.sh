@@ -24,6 +24,25 @@ if [ -f "$JARVIS_HOME/host.env" ]; then
   . "$JARVIS_HOME/host.env"
 fi
 
+# Load secrets from ~/.openjarvis/.env (KEY=value lines; parsed, never executed).
+ENV_FILE="${OPENJARVIS_HOME:-$HOME/.openjarvis}/.env"
+if [ -f "$ENV_FILE" ]; then
+  perms=$(stat -c '%a' "$ENV_FILE" 2>/dev/null || stat -f '%Lp' "$ENV_FILE")
+  case "$perms" in
+    600|400) ;;
+    *) echo "Refusing to load $ENV_FILE: permissions are $perms. Run: chmod 600 $ENV_FILE"; exit 78 ;;
+  esac
+  while IFS= read -r line || [ -n "$line" ]; do
+    line="${line#"${line%%[![:space:]]*}"}"          # trim leading spaces
+    case "$line" in ''|'#'*) continue ;; esac
+    key="${line%%=*}"; val="${line#*=}"
+    case "$key" in *[!A-Za-z0-9_]*|'') continue ;; esac
+    [ "$key" = "$line" ] && continue                   # no '='
+    val="${val%\"}"; val="${val#\"}"; val="${val%\'}"; val="${val#\'}"
+    [ -n "$val" ] && export "$key=$val"
+  done < "$ENV_FILE"
+fi
+
 # Simple log cap: truncate a log file once it passes ~10 MB.
 for f in "$LOG_DIR"/*.log; do
   [ -f "$f" ] || continue
