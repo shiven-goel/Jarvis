@@ -1,0 +1,15 @@
+[Unit]
+Description=Jarvis personal AI agent
+# Never give up restarting (24/7 service).
+StartLimitIntervalSec=0
+
+[Service]
+Type=simple
+ExecStart=__REPO__/host/run-jarvis.sh
+Environment=JARVIS_HOME=%h/.jarvis
+Restart=always
+RestartSec=10
+NoNewPrivileges=true
+
+[Install]
+WantedBy=default.target

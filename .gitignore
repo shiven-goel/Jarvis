@@ -1,0 +1,15 @@
+# Secrets: never commit these
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+credentials*.json
+token*.json
+
+# Runtime data
+logs/
+*.log
+node_modules/
+__pycache__/
+.DS_Store
