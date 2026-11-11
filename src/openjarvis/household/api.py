@@ -63,6 +63,31 @@ def recent_routes() -> Dict[str, Any]:
     return {"routes": list(_hh().recent_routes)[::-1]}
 
 
+@router.get("/usage")
+def usage() -> Dict[str, Any]:
+    """Model-router spend: today's total, budget, last 7 days per model, catalog."""
+    hh = _hh()
+    rc = hh.config.router
+    return {
+        "spent_today_usd": hh.usage.spent_today(),
+        "daily_budget_usd": rc.daily_budget_usd,
+        "days": hh.usage.summary(7),
+        "models": [
+            {
+                "name": m.name,
+                "kind": m.kind,
+                "tier": m.tier,
+                "context_window": m.context_window,
+                "input_cost_per_m": m.input_cost,
+                "output_cost_per_m": m.output_cost,
+                "aliases": list(m.aliases),
+                "enabled": m.enabled,
+            }
+            for m in rc.models
+        ],
+    }
+
+
 @router.get("/household")
 def household_info() -> Dict[str, Any]:
     hh = _hh()

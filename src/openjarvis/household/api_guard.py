@@ -52,7 +52,14 @@ def apply_api_privacy(request_body: Any) -> Optional[str]:
             if user_seen >= sticky:
                 break
 
-    decision = hh.router.route(owner, text, private_turns_remaining=remaining)
+    from openjarvis.household.model_router import history_token_estimate
+
+    decision = hh.router.route(
+        owner,
+        text,
+        private_turns_remaining=remaining,
+        history_tokens=history_token_estimate(earlier),
+    )
     requested = getattr(request_body, "model", "") or ""
     if last_user is not None and decision.query != text:
         last_user.content = decision.query  # strip /local, /claude, /gemini prefix
@@ -60,8 +67,14 @@ def apply_api_privacy(request_body: Any) -> Optional[str]:
     elif decision.private or not requested:
         request_body.model = decision.model
     final_model = request_body.model
-    hh.record_route(owner, "api", final_model, decision.reason)
-    cloud_turn = final_model != hh.config.models.local
+    hh.record_route(
+        owner,
+        "api",
+        final_model,
+        decision.reason,
+        decision.choice if final_model == decision.model else None,
+    )
+    cloud_turn = not hh.router.is_local_model(final_model)
     set_request(
         RequestContext(
             person_id=owner.id,

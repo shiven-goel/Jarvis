@@ -119,3 +119,14 @@ def test_single_channel_resolution_unchanged():
     cfg.channel.enabled = False
     assert SystemBuilder(cfg)._resolve_channels(cfg, bus=None) == []
     assert SystemBuilder(cfg)._resolve_channel(cfg, None) is None
+
+
+def test_usage_api(household):
+    app = FastAPI()
+    app.include_router(router)
+    household.model_router.record_usage(
+        "claude-sonnet-4-6", {"prompt_tokens": 1000, "completion_tokens": 100}
+    )
+    data = TestClient(app).get("/v1/jarvis/usage").json()
+    assert data["spent_today_usd"] > 0
+    assert any(m["name"] == "qwen3:8b" and m["kind"] == "local" for m in data["models"])

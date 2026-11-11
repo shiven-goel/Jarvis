@@ -33,11 +33,17 @@ logger = logging.getLogger(__name__)
 class Household:
     """Runtime state built from :class:`HouseholdConfig`."""
 
-    def __init__(self, config: HouseholdConfig) -> None:
+    def __init__(
+        self, config: HouseholdConfig, *, usage_path: Optional[Path] = None
+    ) -> None:
+        from openjarvis.household.model_router import ModelRouter, UsageTracker
         from openjarvis.security.approval_gate import ApprovalGate
 
         self.config = config
-        self.router = PrivacyRouter(config)
+        self.usage = UsageTracker(usage_path)
+        self.model_router = ModelRouter(config.router, self.usage)
+        self.router = PrivacyRouter(config, self.model_router)
+        self._buses: set = set()
         self.gate = ApprovalGate(
             auto_tools=config.approval.auto_tools,
             always_ask_tools=config.approval.always_ask_tools,
@@ -51,17 +57,54 @@ class Household:
         self.recent_routes: deque = deque(maxlen=50)
 
     def record_route(
-        self, person: Person, channel: str, model: str, reason: str
+        self,
+        person: Person,
+        channel: str,
+        model: str,
+        reason: str,
+        choice: Any = None,
     ) -> None:
-        self.recent_routes.append(
-            {
-                "time": time.time(),
-                "person": person.id,
-                "channel": channel,
-                "model": model,
-                "reason": reason,
-            }
-        )
+        entry = {
+            "time": time.time(),
+            "person": person.id,
+            "channel": channel,
+            "model": model,
+            "reason": reason,
+        }
+        if choice is not None:
+            entry.update(
+                task=choice.task,
+                tier_needed=choice.tier_needed,
+                est_tokens_in=choice.tokens_in,
+                est_tokens_out=choice.tokens_out,
+                est_cost_usd=choice.est_cost,
+                fallbacks=choice.fallbacks,
+            )
+        self.recent_routes.append(entry)
+
+    def attach_bus(self, bus: Any) -> None:
+        """Count real token usage/cost of every model call published on *bus*."""
+        if bus is None or id(bus) in self._buses:
+            return
+        try:
+            from openjarvis.core.events import EventType
+        except Exception:  # pragma: no cover
+            return
+
+        def _on_end(event: Any) -> None:
+            data = getattr(event, "data", event) or {}
+            model = data.get("model") or ""
+            usage = data.get("usage") or {}
+            if not usage and data.get("completion_tokens"):
+                usage = {"completion_tokens": data.get("completion_tokens")}
+            if model:
+                try:
+                    self.model_router.record_usage(model, usage)
+                except Exception:
+                    logger.debug("usage record failed", exc_info=True)
+
+        bus.subscribe(EventType.INFERENCE_END, _on_end)
+        self._buses.add(id(bus))
 
     # -- per-person resources ------------------------------------------------------
 

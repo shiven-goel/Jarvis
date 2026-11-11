@@ -48,7 +48,7 @@ PEOPLE_TOML = textwrap.dedent(
 def make_household(tmp_path, text: str = PEOPLE_TOML) -> Household:
     data = _toml.loads(text)
     data.setdefault("settings", {})["data_dir"] = str(tmp_path / "people")
-    return Household(parse_household(data))
+    return Household(parse_household(data), usage_path=tmp_path / "usage.json")
 
 
 @pytest.fixture(autouse=True)

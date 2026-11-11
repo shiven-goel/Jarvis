@@ -126,6 +126,7 @@ def wire_household_channel(
         )
 
     hh = household
+    hh.attach_bus(getattr(system, "bus", None))
     dispatcher = _Dispatcher()
     send_lock = threading.Lock()
 
@@ -145,8 +146,13 @@ def wire_household_channel(
             session_key, channel=cm.channel, channel_user_id=cm.sender
         )
         remaining = _private_turns_remaining(session, hh.config.privacy.sticky_turns)
+        from openjarvis.household.model_router import history_token_estimate
+
         decision = hh.router.route(
-            person, cm.content, private_turns_remaining=remaining
+            person,
+            cm.content,
+            private_turns_remaining=remaining,
+            history_tokens=history_token_estimate(session.messages[-_HISTORY_LIMIT:]),
         )
         prior = _history(session, drop_private=decision.drop_private_history)
 
@@ -183,34 +189,58 @@ def wire_household_channel(
             extra={
                 "allowed_tools": allowed,
                 "route": decision.reason,
-                "cloud_turn": decision.model != hh.config.models.local,
+                "cloud_turn": not decision.is_local,
                 "sensitive_tool": hh.router.is_sensitive_tool,
             },
         )
         token = set_request(ctx)
-        hh.record_route(person, cm.channel, decision.model, decision.reason)
+        hh.record_route(
+            person, cm.channel, decision.model, decision.reason, decision.choice
+        )
         logger.info(
             "[%s] %s -> %s (%s)", cm.channel, person.id, decision.model, decision.reason
         )
         tool_names: List[str] = []
+        reply = ""
+        agent = system.agent_name if system.agent_name else None
+        if agent == "none":
+            agent = None
+        # Try the chosen model, then up to two fallbacks. Fallbacks come from
+        # the same pool, so a private turn only ever falls back to local models.
+        candidates = [decision.model] + [
+            m
+            for m in decision.fallbacks
+            if decision.is_local is False or hh.router.is_local_model(m)
+        ][:2]
         try:
-            agent = system.agent_name if system.agent_name else None
-            if agent == "none":
-                agent = None
-            result = system.ask(
-                decision.query,
-                context=person.is_owner,
-                agent=agent,
-                prior_messages=prior,
-                **overrides,
-            )
-            reply = result.get("content", "")
-            tool_names = [
-                tr.get("tool_name", "") for tr in result.get("tool_results", [])
-            ]
-        except Exception:
-            logger.exception("Channel message handler error")
-            reply = "Sorry, I hit an error processing that."
+            for i, model_name in enumerate(candidates):
+                overrides["model"] = model_name
+                try:
+                    result = system.ask(
+                        decision.query,
+                        context=person.is_owner,
+                        agent=agent,
+                        prior_messages=prior,
+                        **overrides,
+                    )
+                except Exception:
+                    logger.exception("Model %s failed", model_name)
+                    result = {"error": True, "content": ""}
+                if not result.get("error") and result.get("content"):
+                    reply = result.get("content", "")
+                    tool_names = [
+                        tr.get("tool_name", "") for tr in result.get("tool_results", [])
+                    ]
+                    if i:
+                        hh.record_route(
+                            person,
+                            cm.channel,
+                            model_name,
+                            f"fallback after {candidates[i - 1]} failed",
+                        )
+                    break
+            else:
+                reply = "Sorry, I hit an error processing that."
         finally:
             reset_request(token)
 

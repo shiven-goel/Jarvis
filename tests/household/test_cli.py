@@ -33,3 +33,19 @@ def test_m365_setup_and_list(tmp_path, monkeypatch):
         m365, ["add-shared", "s", "--via", "work", "--mailbox", "a@b.c"]
     )
     assert r.exit_code == 1 and "No Microsoft 365 account named 'work'" in r.output
+
+
+def test_people_route_and_usage(tmp_path, monkeypatch):
+    p = tmp_path / "people.toml"
+    p.write_text(PEOPLE_TOML)
+    monkeypatch.setenv("OPENJARVIS_PEOPLE", str(p))
+    monkeypatch.setenv("OPENJARVIS_HOME", str(tmp_path))
+    r = CliRunner().invoke(people, ["route", "check my inbox"])
+    assert r.exit_code == 0, r.output
+    assert "qwen3:8b" in r.output and "private data" in r.output
+    r = CliRunner().invoke(people, ["route", "hi", "--as", "mom"])
+    assert "family member" in r.output
+    r = CliRunner().invoke(people, ["route", "hi", "--as", "ghost"])
+    assert r.exit_code == 1
+    r = CliRunner().invoke(people, ["usage"])
+    assert r.exit_code == 0 and "Today: $0.0000" in r.output

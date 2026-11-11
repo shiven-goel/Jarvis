@@ -99,6 +99,13 @@ You should get an approval request. Answer `no`, and Jarvis should say it wasn't
 text, e.g. `{"person": "owner", "channel": "slack", "model": "qwen3:8b", "reason": "mentions private data"}`.
 For a live log, run `jarvis --verbose serve`.
 
+### 4b. The model router: the cheapest model that's good enough
+
+On top of the privacy rules, each message's **task type, size in tokens, complexity, cost and your daily
+budget** decide which model answers: local Qwen, Claude Haiku, Sonnet or Opus, or Gemini Flash or Pro.
+It also has fallbacks for when a model fails. Full guide: [`MODEL-ROUTER.md`](MODEL-ROUTER.md).
+Preview it with `jarvis people route "<message>"`, and see spend with `jarvis people usage`.
+
 ## 5. Family members get their own memory and no access to your data
 
 **Before:** one shared memory, and your `USER.md` and `MEMORY.md` were part of every reply.
@@ -131,7 +138,7 @@ uv run pytest tests/household tests/connectors/test_m365_mail.py -q    # 76 test
 uv run pytest tests -q -n 8                                            # whole suite
 ```
 
-Full-suite result when this was written: 9,467 passed. 22 tests fail, and they fail the same way on unmodified
+Full-suite result when this was written: 9,503 passed. 22 tests fail, and they fail the same way on unmodified
 upstream, because they need live network services (dataset downloads, Gemma.cpp, live connectors).
 
 ## Files changed in upstream code (keep these in mind when merging)

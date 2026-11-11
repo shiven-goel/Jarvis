@@ -200,7 +200,7 @@ class ModelPolicy:
     """
 
     local: str = "qwen3:8b"
-    cloud: str = "claude-sonnet-4-6"
+    cloud: str = "claude-opus-5-5"
     cloud_alt: str = "gemini-2.5-pro"
     family: str = "local"
     complexity_threshold: float = 0.30  # below this -> local model
@@ -236,6 +236,7 @@ class HouseholdConfig:
     family_tools: FrozenSet[str] = frozenset(DEFAULT_FAMILY_TOOLS)
     data_dir: Path = field(default_factory=lambda: _config_dir() / "people")
     source_path: Optional[Path] = None
+    router: Any = None  # model_router.RouterConfig
 
     # -- lookups --------------------------------------------------------------
 
@@ -427,8 +428,17 @@ def parse_household(
         if not any(t.startswith(p) for p in pp.sensitive_tool_prefixes)
     }
 
+    from openjarvis.household.model_router import parse_router_config
+
+    router = parse_router_config(
+        data.get("router", {}) or {},
+        local=mp.local,
+        cloud=mp.cloud,
+        cloud_alt=mp.cloud_alt,
+    )
     data_dir = settings.get("data_dir")
     return HouseholdConfig(
+        router=router,
         enabled=bool(settings.get("enabled", True)),
         ignore_groups=bool(settings.get("ignore_groups", True)),
         stranger_reply=str(settings.get("stranger_reply", "")),

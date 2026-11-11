@@ -11,7 +11,7 @@ OpenJarvis is tracked as the `upstream` remote, so its updates can be pulled in.
 |-------|----------|
 | Base | Fork OpenJarvis and customize on top |
 | Host | Linux PC / old laptop, running 24/7 (hardware TBD: run `personal/host/check-hardware.sh`) |
-| Brain | **Hybrid**: local Qwen via Ollama for quick and private tasks; Claude and Gemini via API for complex ones |
+| Brain | **Model router**: local Qwen for quick and private tasks; Claude Haiku, Sonnet or Opus, or Gemini, picked per message by task, tokens, cost and budget |
 | Privacy | **Everything stored locally.** Anything touching email, Drive, Calendar or Notion is answered by the **local** model only; cloud models get general questions only |
 | Channels | **Slack** (Socket Mode) and **WhatsApp** via the Baileys bridge on a **separate spare number** |
 | Data (read) | Gmail, Google Calendar + Drive, Notion, Outlook (personal now; work only after IT approval) |
@@ -44,6 +44,7 @@ Details and how to verify each one: [`docs/FIXES.md`](docs/FIXES.md).
 4. ✅ **Privacy router**: private data is only ever seen by the local model, in chat **and** on the dashboard
 5. ✅ **Per-person memory**; family gets no access to your data
 6. ✅ **New: Microsoft 365 / Outlook with many accounts** (work, personal, shared mailboxes); see [`docs/microsoft-365-setup.md`](docs/microsoft-365-setup.md)
+7. ✅ **New: model router** that picks a model by task type, token size, complexity, cost and daily budget, with fallbacks; see [`docs/MODEL-ROUTER.md`](docs/MODEL-ROUTER.md)
 
 ## Other things you need because of external apps
 

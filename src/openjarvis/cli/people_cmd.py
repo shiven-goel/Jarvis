@@ -57,7 +57,95 @@ def check() -> None:
         f"timeout {cfg.approval.timeout_seconds // 60} min."
     )
     console.print(f"Family tools: {', '.join(sorted(cfg.family_tools))}")
+    rt = Table("model", "kind", "tier", "context", "$/1M in", "$/1M out", "aliases")
+    for mp in cfg.router.models:
+        rt.add_row(
+            mp.name + ("" if mp.enabled else " (off)"),
+            mp.kind,
+            str(mp.tier),
+            f"{mp.context_window:,}",
+            f"{mp.input_cost:g}",
+            f"{mp.output_cost:g}",
+            ", ".join("/" + a for a in mp.aliases) or "-",
+        )
+    console.print(rt)
+    if cfg.router.daily_budget_usd:
+        console.print(f"Daily cloud budget: ${cfg.router.daily_budget_usd:.2f}")
     console.print("[green]people.toml OK[/green]")
+
+
+def _load_or_exit():
+    from openjarvis.household import Household
+    from openjarvis.household.config import load_household_config
+
+    try:
+        cfg = load_household_config()
+    except Exception as exc:
+        Console().print(f"[red]people.toml is invalid: {exc}[/red]")
+        raise SystemExit(1)
+    if cfg is None:
+        Console().print(
+            "[yellow]No people.toml yet (see: jarvis people check).[/yellow]"
+        )
+        raise SystemExit(1)
+    return Household(cfg)
+
+
+@people.command()
+@click.argument("message")
+@click.option(
+    "--as", "as_person", default="", help="Person id to route as (default: owner)."
+)
+@click.option(
+    "--history-tokens", default=0, help="Pretend the chat already has this many tokens."
+)
+def route(message: str, as_person: str, history_tokens: int) -> None:
+    """Show which model would answer MESSAGE, and why (nothing is sent)."""
+    hh = _load_or_exit()
+    person = hh.config.get(as_person) if as_person else hh.config.owner
+    if person is None:
+        Console().print(f"[red]No person '{as_person}'.[/red]")
+        raise SystemExit(1)
+    d = hh.router.route(person, message, history_tokens=history_tokens)
+    c = d.choice
+    console = Console()
+    console.print(
+        f"Model:    [cyan]{d.model}[/cyan] ({'local' if d.is_local else 'cloud'})"
+    )
+    console.print(f"Why:      {d.reason}")
+    if c is not None:
+        console.print(f"Task:     {c.task} (needs tier {c.tier_needed})")
+        console.print(f"Tokens:   ~{c.tokens_in} in / ~{c.tokens_out} out")
+        console.print(f"Est cost: ${c.est_cost:.5f}")
+        console.print(f"Fallback: {', '.join(c.fallbacks) or '-'}")
+    console.print(
+        f"Private:  {d.private}; personal-data tools "
+        f"{'removed' if d.strip_sensitive_tools else 'allowed'}"
+    )
+
+
+@people.command()
+def usage() -> None:
+    """Show model-router spend for the last 7 days."""
+    hh = _load_or_exit()
+    console = Console()
+    budget = hh.config.router.daily_budget_usd
+    console.print(
+        f"Today: ${hh.usage.spent_today():.4f}"
+        + (f" of ${budget:.2f} budget" if budget else " (no daily budget set)")
+    )
+    t = Table("day", "model", "requests", "tokens in", "tokens out", "cost $")
+    for day, models in hh.usage.summary(7).items():
+        for name, u in sorted(models.items()):
+            t.add_row(
+                day,
+                name,
+                str(u["requests"]),
+                str(u["input_tokens"]),
+                str(u["output_tokens"]),
+                f"{u['cost_usd']:.4f}",
+            )
+    console.print(t)
 
 
 __all__ = ["people"]

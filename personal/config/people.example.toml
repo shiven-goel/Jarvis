@@ -12,12 +12,91 @@ ignore_groups = true          # only 1:1 chats / Slack DMs
 stranger_reply = ""           # "" = ignore strangers silently
 
 [models]
-local = "qwen3:8b"            # private + quick requests (must match `ollama list`)
-cloud = "claude-sonnet-4-6"   # complex, non-private requests
-cloud_alt = "gemini-2.5-pro"  # start a message with /gemini to use it
-family = "local"              # "local", "cloud", or a model name
-complexity_threshold = 0.30   # below this, even non-private requests stay local
+local = "qwen3:8b"            # main local model (must match `ollama list`)
+family = "local"              # "local" = local models only, "cloud" = cheap cloud (tier <= 2), or a model name
 cloud_enabled = true          # false = never use cloud models
+
+# ---------------------------------------------------------------------------
+# Model router: which LLM answers which message.
+# For each message Jarvis works out the task type (chat, quick, extract,
+# summarize, writing, coding, analysis, hard), how big it is in tokens, and how
+# hard it is. Then it picks the CHEAPEST model whose tier is high enough and
+# whose context window fits. Private messages only ever use local models.
+# Force a model by starting a message with one of its aliases, e.g. "/opus ...".
+# Preview without sending: jarvis people route "your message"
+# Prices are USD per 1M tokens. Claude prices checked Nov 2026; check Gemini's
+# current prices at ai.google.dev/pricing before relying on the budget.
+# ---------------------------------------------------------------------------
+[router]
+daily_budget_usd = 2.00       # 80% -> no top tier; 100% -> local only until midnight. 0 = no limit
+
+[router.tasks]                # minimum tier per task (1 = local ... 4 = strongest)
+chat = 1
+quick = 1
+extract = 2
+summarize = 2
+writing = 3
+coding = 3
+analysis = 3
+hard = 4
+
+[router.prefer]               # optional: always use this model for a task when it qualifies
+coding = "claude-sonnet-5-5"
+
+[[router.models]]
+name = "qwen3:8b"
+kind = "local"
+tier = 1
+context_window = 8192         # match OLLAMA_CONTEXT_LENGTH (see personal/docs/MODEL-ROUTER.md)
+aliases = ["local"]
+
+[[router.models]]
+name = "claude-haiku-5-5"
+kind = "cloud"
+tier = 2
+context_window = 1000000
+input_cost = 0.10
+output_cost = 0.50
+long_context_threshold = 100000   # Haiku 5.5 costs more above 100K input tokens
+long_input_cost = 0.50
+long_output_cost = 2.50
+aliases = ["haiku"]
+
+[[router.models]]
+name = "claude-sonnet-5-5"
+kind = "cloud"
+tier = 3
+context_window = 1000000
+input_cost = 2.00
+output_cost = 10.00
+aliases = ["sonnet", "claude"]
+
+[[router.models]]
+name = "claude-opus-5-5"
+kind = "cloud"
+tier = 4
+context_window = 1000000
+input_cost = 4.00
+output_cost = 20.00
+aliases = ["opus"]
+
+[[router.models]]
+name = "gemini-2.5-flash"
+kind = "cloud"
+tier = 2
+context_window = 1000000
+input_cost = 0.30             # check current price
+output_cost = 2.50
+aliases = ["flash"]
+
+[[router.models]]
+name = "gemini-2.5-pro"
+kind = "cloud"
+tier = 3
+context_window = 1000000
+input_cost = 1.25             # check current price (higher above 200K tokens)
+output_cost = 10.00
+aliases = ["gemini"]
 
 [privacy]
 sticky_turns = 6              # stay local this many turns after private data

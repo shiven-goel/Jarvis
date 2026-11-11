@@ -487,6 +487,10 @@ def create_app(
         from openjarvis.household.api import router as _household_router
 
         app.include_router(_household_router)
+        from openjarvis.household import get_household as _get_hh
+
+        if _get_hh() is not None:
+            _get_hh().attach_bus(bus)  # count usage for the model router budget
     except Exception as exc:  # pragma: no cover
         logger.debug("household router skipped: %s", exc)
     include_all_routes(app)
